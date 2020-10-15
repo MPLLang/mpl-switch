@@ -5,6 +5,7 @@ import os
 import stat
 import tempfile
 import subprocess
+import json
 
 HOME = os.path.expanduser("~")
 
@@ -17,10 +18,19 @@ DOTMPL_VERSIONS = os.path.join(DOTMPL, "versions")
 
 # files and scripts
 DOTMPL_BIN_MPL = os.path.join(DOTMPL_BIN, "mpl")
+DOTMPL_INFO = os.path.join(DOTMPL, "info.json")
+
+# ===========================================================================
+# some miscellaneous definitions and utilities
 
 USAGE = """\
 usage: mpl-switch [ init | list | install <COMMIT> | select <COMMIT> ]
 """
+
+def printUsageAndDie():
+  sys.stderr.write(USAGE)
+  sys.exit(1)
+
 
 MPL_SCRIPT_TEMPLATE = """\
 #!/bin/bash
@@ -30,21 +40,22 @@ MPL_SCRIPT_TEMPLATE = """\
 DEFAULT_MPL_SCRIPT = """\
 #!/bin/bash
 >&2 echo "ERROR: no mpl version has been selected yet"
->&2 echo "(do this to select a version: mpl-switch select <COMMIT>)"
+>&2 echo "(to select a version: mpl-switch select <COMMIT>)"
 exit 1
 """
 
-def makeMPLScript(version):
-  if version is None:
-    return DEFAULT_MPL_SCRIPT
+def ensureExecutable(path):
+  currentMode = os.stat(path).st_mode
+  os.chmod(path, currentMode | stat.S_IEXEC | stat.S_IREAD)
+
+
+def writeMPLScript(version):
   versionDir = os.path.join(DOTMPL_VERSIONS, version)
   mplCmd = os.path.join(versionDir, "bin", "mpl")
-  return MPL_SCRIPT_TEMPLATE.format(mplCmd)
-
-
-def printUsageAndDie():
-  sys.stderr.write(USAGE)
-  sys.exit(1)
+  scriptText = MPL_SCRIPT_TEMPLATE.format(mplCmd)
+  with open(DOTMPL_BIN_MPL, 'w') as file:
+    file.write(scriptText)
+  ensureExecutable(DOTMPL_BIN_MPL)
 
 
 def ensureDir(path):
@@ -89,10 +100,7 @@ def doInit():
   if not os.path.exists(DOTMPL_BIN_MPL):
     with open(DOTMPL_BIN_MPL, 'w') as file:
       file.write(DEFAULT_MPL_SCRIPT)
-
-  # set executable
-  currentMode = os.stat(DOTMPL_BIN_MPL).st_mode
-  os.chmod(DOTMPL_BIN_MPL, currentMode | stat.S_IEXEC | stat.S_IREAD)
+  ensureExecutable(DOTMPL_BIN_MPL)
 
   print("initialized {}".format(DOTMPL))
   print("make sure this is in your PATH: {}".format(os.path.join(DOTMPL_BIN)))
@@ -125,7 +133,7 @@ def doInstall():
   )
 
   print("installed {}".format(commit))
-  print("(run this to select this version: mpl-switch select {})".format(commit))
+  print("(to select this version: mpl-switch select {})".format(commit))
 
 # ===========================================================================
 # mpl-switch select
@@ -144,14 +152,7 @@ def doSelect():
     sys.stderr.write("you need to run: mpl-switch install {}\n".format(commit))
     sys.exit(1)
 
-  scriptText = makeMPLScript(commit)
-
-  with open(DOTMPL_BIN_MPL, 'w') as file:
-    file.write(scriptText)
-
-  # make sure it's executable
-  currentMode = os.stat(DOTMPL_BIN_MPL).st_mode
-  os.chmod(DOTMPL_BIN_MPL, currentMode | stat.S_IEXEC | stat.S_IREAD)
+  writeMPLScript(commit)
 
   print("{} set to use {}".format(DOTMPL_BIN_MPL, commit))
   print("make sure this is in your PATH: {}".format(os.path.join(DOTMPL_BIN)))
@@ -166,7 +167,7 @@ def doList():
 
   if len(commits) == 0:
     print("no versions installed yet")
-    print("(run this: mpl-switch install <COMMIT>)")
+    print("(to install: mpl-switch install <COMMIT>)")
     return
 
   print("installed versions:")
