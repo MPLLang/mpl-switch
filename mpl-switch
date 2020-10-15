@@ -1,0 +1,197 @@
+#!/usr/bin/python
+
+import sys
+import os
+import stat
+import tempfile
+import subprocess
+
+HOME = os.path.expanduser("~")
+
+GITHUB_MPL = "https://github.com/MPLLang/mpl.git"
+
+# directories
+DOTMPL = os.path.join(HOME, ".mpl")
+DOTMPL_BIN = os.path.join(DOTMPL, "bin")
+DOTMPL_VERSIONS = os.path.join(DOTMPL, "versions")
+
+# files and scripts
+DOTMPL_BIN_MPL = os.path.join(DOTMPL_BIN, "mpl")
+
+USAGE = """\
+usage: mpl-switch [ init | list | install <COMMIT> | select <COMMIT> ]
+"""
+
+MPL_SCRIPT_TEMPLATE = """\
+#!/bin/bash
+{} "$@"
+"""
+
+DEFAULT_MPL_SCRIPT = """\
+#!/bin/bash
+>&2 echo "ERROR: no mpl version has been selected yet"
+>&2 echo "(do this to select a version: mpl-switch select <COMMIT>)"
+exit 1
+"""
+
+def makeMPLScript(version):
+  if version is None:
+    return DEFAULT_MPL_SCRIPT
+  versionDir = os.path.join(DOTMPL_VERSIONS, version)
+  mplCmd = os.path.join(versionDir, "bin", "mpl")
+  return MPL_SCRIPT_TEMPLATE.format(mplCmd)
+
+
+def printUsageAndDie():
+  sys.stderr.write(USAGE)
+  sys.exit(1)
+
+
+def ensureDir(path):
+  if os.path.isdir(path):
+    return
+  os.mkdir(path)
+
+
+def is_exe(fpath):
+  return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
+
+
+# ===========================================================================
+# mpl-switch init
+
+# Check if already has been initialized
+def isInitialized():
+  return os.path.isdir(DOTMPL) and \
+         os.path.isdir(DOTMPL_BIN) and \
+         os.path.isdir(DOTMPL_VERSIONS) and \
+         is_exe(DOTMPL_BIN_MPL)
+
+
+def checkInitialized():
+  if isInitialized():
+    return
+  sys.stderr.write("ERROR: .mpl directory not initialized yet\n")
+  sys.stderr.write("(run this: mpl-switch init)")
+  sys.exit(1)
+
+
+# Do initialization work
+def doInit():
+  if isInitialized():
+    print("already initialized at {}".format(DOTMPL))
+    print("make sure this is in your PATH: {}".format(os.path.join(DOTMPL_BIN)))
+    return
+  ensureDir(DOTMPL)
+  ensureDir(DOTMPL_BIN)
+  ensureDir(DOTMPL_VERSIONS)
+
+  if not os.path.exists(DOTMPL_BIN_MPL):
+    with open(DOTMPL_BIN_MPL, 'w') as file:
+      file.write(DEFAULT_MPL_SCRIPT)
+
+  # set executable
+  currentMode = os.stat(DOTMPL_BIN_MPL).st_mode
+  os.chmod(DOTMPL_BIN_MPL, currentMode | stat.S_IEXEC | stat.S_IREAD)
+
+  print("initialized {}".format(DOTMPL))
+  print("make sure this is in your PATH: {}".format(os.path.join(DOTMPL_BIN)))
+
+# ===========================================================================
+# mpl-switch install
+
+def doInstall():
+  checkInitialized()
+
+  if len(sys.argv) < 3:
+    printUsageAndDie()
+
+  commit = sys.argv[2]
+  thisVersionDir = os.path.join(DOTMPL_VERSIONS, commit)
+  ensureDir(thisVersionDir)
+
+  if os.path.exists(os.path.join(thisVersionDir, "bin", "mpl")):
+    print("{} is already installed".format(commit))
+    return
+
+  tempDir = os.path.join(tempfile.mkdtemp(), commit)
+
+  subprocess.check_call(["git", "clone", "-n", GITHUB_MPL, tempDir])
+  subprocess.check_call(["git", "checkout", commit], cwd=tempDir)
+  subprocess.check_call(["make"], cwd=tempDir)
+  subprocess.check_call(
+    ["make", "install", "PREFIX={}".format(thisVersionDir)],
+    cwd=tempDir
+  )
+
+  print("installed {}".format(commit))
+  print("(run this to select this version: mpl-switch select {})".format(commit))
+
+# ===========================================================================
+# mpl-switch select
+
+def doSelect():
+  checkInitialized()
+
+  if len(sys.argv) < 3:
+    printUsageAndDie()
+
+  commit = sys.argv[2]
+
+  thisVersionDir = os.path.join(DOTMPL_VERSIONS, commit)
+  if not os.path.exists(os.path.join(thisVersionDir, "bin", "mpl")):
+    sys.stderr.write("ERROR: {} is not installed\n".format(commit))
+    sys.stderr.write("you need to run: mpl-switch install {}\n".format(commit))
+    sys.exit(1)
+
+  scriptText = makeMPLScript(commit)
+
+  with open(DOTMPL_BIN_MPL, 'w') as file:
+    file.write(scriptText)
+
+  # make sure it's executable
+  currentMode = os.stat(DOTMPL_BIN_MPL).st_mode
+  os.chmod(DOTMPL_BIN_MPL, currentMode | stat.S_IEXEC | stat.S_IREAD)
+
+  print("{} set to use {}".format(DOTMPL_BIN_MPL, commit))
+  print("make sure this is in your PATH: {}".format(os.path.join(DOTMPL_BIN)))
+
+# ===========================================================================
+# mpl-switch list
+
+def doList():
+  checkInitialized()
+
+  commits = os.listdir(DOTMPL_VERSIONS)
+
+  if len(commits) == 0:
+    print("no versions installed yet")
+    print("(run this: mpl-switch install <COMMIT>)")
+    return
+
+  print("installed versions:")
+  for x in commits:
+    print("  {}".format(x))
+
+# ===========================================================================
+
+if len(sys.argv) < 2:
+  printUsageAndDie()
+
+cmd = sys.argv[1]
+
+if cmd == "init":
+  doInit()
+  sys.exit(0)
+elif cmd == "install":
+  doInstall()
+  sys.exit(0)
+elif cmd == "select":
+  doSelect()
+  sys.exit(0)
+elif cmd == "list":
+  doList()
+  sys.exit(0)
+else:
+  sys.stderr.write("unknown command: {}\n".format(cmd))
+  printUsageAndDie()
