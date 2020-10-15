@@ -10,6 +10,10 @@ automatically.
 ## Install
 
 Just clone this repo and add the repo directory to your `PATH`.
+```
+$ git clone https://github.com/MPLLang/mpl-switch.git
+$ export PATH="$(pwd -P)/mpl-switch:$PATH"
+```
 
 ## Usage
 
