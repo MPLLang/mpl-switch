@@ -34,9 +34,9 @@ To select a version of MPL to use:
 $ mpl-switch select <COMMIT>
 ```
 
-To see which versions are already installed:
+To see installed versions and which is currently selected:
 ```
-$ mpl-switch list
+$ mpl-switch show
 ```
 
 ## Example
@@ -55,16 +55,12 @@ $ mpl-switch install b6eed2941e81ced341c7aff3731ec25238cd50ce
 ...
 $ mpl-switch install a969232df75dac4ac44c917ea8fed973c0226cd7
 ...
-$ mpl-switch list
-installed versions:
-  b6eed2941e81ced341c7aff3731ec25238cd50ce
-  a969232df75dac4ac44c917ea8fed973c0226cd7
-
-$ mpl-switch select a969232df75dac4ac44c917ea8fed973c0226cd7
-$ mpl
-MLton [mpl] 20200115.194836-ga969232
 
 $ mpl-switch select b6eed2941e81ced341c7aff3731ec25238cd50ce
+$ mpl-switch show
+VERSIONS:
+  * b6eed2941e81ced341c7aff3731ec25238cd50ce  <-- current
+    a969232df75dac4ac44c917ea8fed973c0226cd7
 $ mpl
 MLton [mpl] 20200929.203633-gb6eed29
 ```

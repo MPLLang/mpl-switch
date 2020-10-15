@@ -24,7 +24,7 @@ DOTMPL_INFO = os.path.join(DOTMPL, "info.json")
 # some miscellaneous definitions and utilities
 
 USAGE = """\
-usage: mpl-switch [ init | list | install <COMMIT> | select <COMMIT> ]
+usage: mpl-switch [ init | show | install <COMMIT> | select <COMMIT> ]
 """
 
 def printUsageAndDie():
@@ -50,9 +50,12 @@ def ensureExecutable(path):
 
 
 def writeMPLScript(version):
-  versionDir = os.path.join(DOTMPL_VERSIONS, version)
-  mplCmd = os.path.join(versionDir, "bin", "mpl")
-  scriptText = MPL_SCRIPT_TEMPLATE.format(mplCmd)
+  if version is None:
+    scriptText = DEFAULT_MPL_SCRIPT
+  else:
+    versionDir = os.path.join(DOTMPL_VERSIONS, version)
+    mplCmd = os.path.join(versionDir, "bin", "mpl")
+    scriptText = MPL_SCRIPT_TEMPLATE.format(mplCmd)
   with open(DOTMPL_BIN_MPL, 'w') as file:
     file.write(scriptText)
   ensureExecutable(DOTMPL_BIN_MPL)
@@ -76,7 +79,8 @@ def isInitialized():
   return os.path.isdir(DOTMPL) and \
          os.path.isdir(DOTMPL_BIN) and \
          os.path.isdir(DOTMPL_VERSIONS) and \
-         is_exe(DOTMPL_BIN_MPL)
+         is_exe(DOTMPL_BIN_MPL) and \
+         os.path.exists(DOTMPL_INFO)
 
 
 def checkInitialized():
@@ -87,23 +91,45 @@ def checkInitialized():
   sys.exit(1)
 
 
-# Do initialization work
 def doInit():
   if isInitialized():
     print("already initialized at {}".format(DOTMPL))
     print("make sure this is in your PATH: {}".format(os.path.join(DOTMPL_BIN)))
     return
+
   ensureDir(DOTMPL)
   ensureDir(DOTMPL_BIN)
   ensureDir(DOTMPL_VERSIONS)
 
-  if not os.path.exists(DOTMPL_BIN_MPL):
-    with open(DOTMPL_BIN_MPL, 'w') as file:
-      file.write(DEFAULT_MPL_SCRIPT)
-  ensureExecutable(DOTMPL_BIN_MPL)
+  try:
+    with open(DOTMPL_INFO, 'r') as file:
+      info = json.load(file)
+  except:
+    with open(DOTMPL_INFO, 'w') as file:
+      # initialize with empty info
+      json.dump({}, file)
+    info = {}
+
+  currentVersion = None if "current" not in info else info["current"]
+  writeMPLScript(currentVersion)
 
   print("initialized {}".format(DOTMPL))
   print("make sure this is in your PATH: {}".format(os.path.join(DOTMPL_BIN)))
+
+
+# ===========================================================================
+# mpl-switch current
+
+# def doCurrent():
+#   checkInitialized()
+#   with open(DOTMPL_INFO, 'r') as file:
+#     info = json.load(file)
+#   if "current" in info:
+#     print(info["current"])
+#   else:
+#     print("no version currently selected")
+#     print("(to select: mpl-switch select <COMMIT>)")
+
 
 # ===========================================================================
 # mpl-switch install
@@ -154,25 +180,38 @@ def doSelect():
 
   writeMPLScript(commit)
 
+  with open(DOTMPL_INFO, 'r') as file:
+    info = json.load(file)
+  info["current"] = commit
+  with open(DOTMPL_INFO, 'w') as file:
+    json.dump(info, file)
+
   print("{} set to use {}".format(DOTMPL_BIN_MPL, commit))
   print("make sure this is in your PATH: {}".format(os.path.join(DOTMPL_BIN)))
 
 # ===========================================================================
-# mpl-switch list
+# mpl-switch show
 
-def doList():
+def doShow():
   checkInitialized()
 
   commits = os.listdir(DOTMPL_VERSIONS)
+
+  with open(DOTMPL_INFO, 'r') as file:
+    info = json.load(file)
+    current = None if "current" not in info else info["current"]
 
   if len(commits) == 0:
     print("no versions installed yet")
     print("(to install: mpl-switch install <COMMIT>)")
     return
 
-  print("installed versions:")
+  print("VERSIONS:")
   for x in commits:
-    print("  {}".format(x))
+    if x == current:
+      print("  * {}  <-- current".format(x))
+    else:
+      print("    {}".format(x))
 
 # ===========================================================================
 
@@ -183,16 +222,14 @@ cmd = sys.argv[1]
 
 if cmd == "init":
   doInit()
-  sys.exit(0)
 elif cmd == "install":
   doInstall()
-  sys.exit(0)
 elif cmd == "select":
   doSelect()
-  sys.exit(0)
-elif cmd == "list":
-  doList()
-  sys.exit(0)
+elif cmd == "show":
+  doShow()
+elif cmd == "current":
+  doCurrent()
 else:
   sys.stderr.write("unknown command: {}\n".format(cmd))
   printUsageAndDie()
