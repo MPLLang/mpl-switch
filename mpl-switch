@@ -24,7 +24,14 @@ DOTMPL_INFO = os.path.join(DOTMPL, "info.json")
 # some miscellaneous definitions and utilities
 
 USAGE = """\
-usage: mpl-switch [ init | show | install <COMMIT> | select <COMMIT> ]
+usage: mpl-switch <COMMAND>
+Commands:
+  install <REF>  install a version (REF can be either a commit or a tag)
+  select <REF>   select an installed version
+  current        display the currently selected version
+  list           list all installed versions
+  show           (synonym for 'list' command)
+  init           initialize the .mpl directory
 """
 
 def printUsageAndDie():
@@ -120,16 +127,55 @@ def doInit():
 # ===========================================================================
 # mpl-switch current
 
-# def doCurrent():
-#   checkInitialized()
-#   with open(DOTMPL_INFO, 'r') as file:
-#     info = json.load(file)
-#   if "current" in info:
-#     print(info["current"])
-#   else:
-#     print("no version currently selected")
-#     print("(to select: mpl-switch select <COMMIT>)")
+def doCurrent():
+  checkInitialized()
+  with open(DOTMPL_INFO, 'r') as file:
+    info = json.load(file)
+  if "current" in info:
+    x = info["current"]
+    maybeTag = info["tags"][x] if "tags" in info and x in info["tags"] else None
+    tagMsg = " (git tag: {})".format(maybeTag) if maybeTag is not None and maybeTag != x else ""
+    print("{}{}".format(x, tagMsg))
+  else:
+    print("no version currently selected")
+    print("(to select: mpl-switch select <COMMIT|TAG>)")
 
+
+# ===========================================================================
+# mpl-switch update-tags
+
+def doUpdateTags():
+  checkInitialized()
+
+  if len(sys.argv) > 2:
+    printUsageAndDie()
+
+  dname = "updatetags"
+  tempDir = os.path.join(tempfile.mkdtemp(), dname)
+  subprocess.check_call(
+    ["git", "clone", "--filter=blob:none", "-n", "-q", GITHUB_MPL, tempDir]
+  )
+
+  with open(DOTMPL_INFO, 'r') as file:
+    info = json.load(file)
+  if "tags" not in info:
+    info["tags"] = {}
+
+  commits = os.listdir(DOTMPL_VERSIONS)
+  for commit in commits:
+    try:
+      maybeTag = subprocess.check_output(
+        ["git", "tag", "--points-at", commit],
+        cwd=tempDir
+      ).rstrip("\n")
+      if maybeTag != "":
+        info["tags"][commit] = maybeTag
+        print("found tag for {}: {}".format(commit, maybeTag))
+    except:
+      pass
+
+  with open(DOTMPL_INFO, 'w') as file:
+    json.dump(info, file)
 
 # ===========================================================================
 # mpl-switch install
@@ -152,13 +198,38 @@ def doInstall():
 
   subprocess.check_call(["git", "clone", "-n", GITHUB_MPL, tempDir])
   subprocess.check_call(["git", "checkout", commit], cwd=tempDir)
+
+  try:
+    maybeTag = subprocess.check_output(
+      ["git", "tag", "--points-at", commit],
+      cwd=tempDir
+    ).rstrip("\n")
+    if maybeTag == "":
+      maybeTag = None
+  except:
+    maybeTag = None
+
   subprocess.check_call(["make"], cwd=tempDir)
   subprocess.check_call(
     ["make", "install", "PREFIX={}".format(thisVersionDir)],
     cwd=tempDir
   )
 
-  print("installed {}".format(commit))
+
+  if maybeTag is not None:
+    with open(DOTMPL_INFO, 'r') as file:
+      info = json.load(file)
+    if "tags" not in info:
+      info["tags"] = {}
+    info["tags"][commit] = maybeTag
+    with open(DOTMPL_INFO, 'w') as file:
+      json.dump(info, file)
+
+  if maybeTag is not None:
+    tagMsg = " (git tag: {})".format(maybeTag)
+  else:
+    tagMsg = ""
+  print("installed {}{}".format(commit, tagMsg))
   print("(to select this version: mpl-switch select {})".format(commit))
 
 # ===========================================================================
@@ -190,9 +261,9 @@ def doSelect():
   print("make sure this is in your PATH: {}".format(os.path.join(DOTMPL_BIN)))
 
 # ===========================================================================
-# mpl-switch show
+# mpl-switch show|list
 
-def doShow():
+def doList():
   checkInitialized()
 
   commits = os.listdir(DOTMPL_VERSIONS)
@@ -203,15 +274,23 @@ def doShow():
 
   if len(commits) == 0:
     print("no versions installed yet")
-    print("(to install: mpl-switch install <COMMIT>)")
+    print("(to install: mpl-switch install <COMMIT|TAG>)")
     return
 
-  print("VERSIONS:")
-  for x in commits:
-    if x == current:
-      print("  * {}  <-- current".format(x))
+  def show(x):
+    if ("tags" in info) and (x in info["tags"]) and (info["tags"][x] != x):
+      tagMsg = " (git tag: {})".format(info["tags"][x])
     else:
-      print("    {}".format(x))
+      tagMsg = ""
+    if x == current:
+      print("  * {}{}".format(x, tagMsg))
+    else:
+      print("    {}{}".format(x, tagMsg))
+
+  print("INSTALLED VERSIONS:")
+  for x in commits:
+    show(x)
+
 
 # ===========================================================================
 
@@ -226,10 +305,12 @@ elif cmd == "install":
   doInstall()
 elif cmd == "select":
   doSelect()
-elif cmd == "show":
-  doShow()
+elif cmd == "show" or cmd == "list":
+  doList()
 elif cmd == "current":
   doCurrent()
+elif cmd == "update-tags":
+  doUpdateTags()
 else:
   sys.stderr.write("unknown command: {}\n".format(cmd))
   printUsageAndDie()
