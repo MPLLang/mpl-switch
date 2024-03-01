@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 import sys
 import os
@@ -26,9 +26,10 @@ DOTMPL_INFO = os.path.join(DOTMPL, "info.json")
 USAGE = """\
 usage: mpl-switch <COMMAND>
 Commands:
+  current        display the currently selected version
   install <REF>  install a version (REF can be either a commit or a tag)
   select <REF>   select an installed version
-  current        display the currently selected version
+  path <REF>     output the executable path for the version <REF>
   list           list all installed versions
   show           (synonym for 'list' command)
   init           initialize the .mpl directory
@@ -56,12 +57,17 @@ def ensureExecutable(path):
   os.chmod(path, currentMode | stat.S_IEXEC | stat.S_IREAD)
 
 
+def executableMPLPath(version):
+  versionDir = os.path.join(DOTMPL_VERSIONS, version)
+  mplCmd = os.path.join(versionDir, "bin", "mpl")
+  return mplCmd
+
+
 def writeMPLScript(version):
   if version is None:
     scriptText = DEFAULT_MPL_SCRIPT
   else:
-    versionDir = os.path.join(DOTMPL_VERSIONS, version)
-    mplCmd = os.path.join(versionDir, "bin", "mpl")
+    mplCmd = executableMPLPath(version)
     scriptText = MPL_SCRIPT_TEMPLATE.format(mplCmd)
   with open(DOTMPL_BIN_MPL, 'w') as file:
     file.write(scriptText)
@@ -260,6 +266,26 @@ def doSelect():
   print("{} set to use {}".format(DOTMPL_BIN_MPL, commit))
   print("make sure this is in your PATH: {}".format(os.path.join(DOTMPL_BIN)))
 
+
+# ===========================================================================
+# mpl-switch path <REF>
+
+def doPath():
+  checkInitialized()
+
+  if len(sys.argv) < 3:
+    printUsageAndDie()
+
+  commit = sys.argv[2]
+
+  thisVersionDir = os.path.join(DOTMPL_VERSIONS, commit)
+  if not os.path.exists(os.path.join(thisVersionDir, "bin", "mpl")):
+    sys.stderr.write("ERROR: {} is not installed\n".format(commit))
+    sys.stderr.write("you need to run: mpl-switch install {}\n".format(commit))
+    sys.exit(1)
+
+  print(executableMPLPath(commit))
+
 # ===========================================================================
 # mpl-switch show|list
 
@@ -311,6 +337,8 @@ elif cmd == "current":
   doCurrent()
 elif cmd == "update-tags":
   doUpdateTags()
+elif cmd == "path":
+  doPath()
 else:
   sys.stderr.write("unknown command: {}\n".format(cmd))
   printUsageAndDie()
