@@ -51,21 +51,21 @@ $ export PATH="~/.mpl/bin:$PATH"
 $ which mpl
 /usr0/home/swestric/.mpl/bin/mpl
 
-$ mpl-switch install b6eed2941e81ced341c7aff3731ec25238cd50ce
+$ mpl-switch install v0.4
 ...
-$ mpl-switch install v0.3
+$ mpl-switch install v0.5
 ...
 
-$ mpl-switch select v0.3
+$ mpl-switch select v0.5
 
 $ mpl-switch list
 INSTALLED VERSIONS:
-  * v0.3
-    b6eed2941e81ced341c7aff3731ec25238cd50ce
+    v0.4
+  * v0.5
 
 $ mpl-switch current
-v0.3
+v0.5
 
 $ mpl
-MLton [mpl] 20220625.204900-g7f59464c6
+MLton [mpl] 20240225.165003-g607dc8699
 ```
