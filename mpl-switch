@@ -20,6 +20,9 @@ DOTMPL_VERSIONS = os.path.join(DOTMPL, "versions")
 DOTMPL_BIN_MPL = os.path.join(DOTMPL_BIN, "mpl")
 DOTMPL_INFO = os.path.join(DOTMPL, "info.json")
 
+# known key/value settings
+KNOWN_KEYS = {"make-cmd", "make-options"}
+
 # ===========================================================================
 # some miscellaneous definitions and utilities
 
@@ -33,6 +36,7 @@ Commands:
   list           list all installed versions
   show           (synonym for 'list' command)
   init           initialize the .mpl directory
+  set-option <KEY> <VALUE>
 """
 
 def printUsageAndDie():
@@ -186,6 +190,18 @@ def doUpdateTags():
 # ===========================================================================
 # mpl-switch install
 
+def getMakeCmd(with_options=True):
+  with open(DOTMPL_INFO, 'r') as file:
+    info = json.load(file)
+  if "options" not in info:
+    return ["make"]
+  opts = info["options"]
+  my_make = ["make" if "make-cmd" not in opts else opts["make-cmd"]]
+  if with_options and "make-options" in opts:
+    my_make += [opts["make-options"]]
+  return my_make
+
+
 def doInstall():
   checkInitialized()
 
@@ -215,12 +231,17 @@ def doInstall():
   except:
     maybeTag = None
 
-  subprocess.check_call(["make"], cwd=tempDir)
   subprocess.check_call(
-    ["make", "install", "PREFIX={}".format(thisVersionDir)],
+    # ["make"] or ["gmake"] or whatever
+    getMakeCmd(with_options=True),
     cwd=tempDir
   )
-
+  
+  subprocess.check_call(
+    # ["make"] + ["install", ...]
+    getMakeCmd(with_options=False) + ["install", "PREFIX={}".format(thisVersionDir)],
+    cwd=tempDir
+  )
 
   if maybeTag is not None:
     with open(DOTMPL_INFO, 'r') as file:
@@ -319,6 +340,36 @@ def doList():
 
 
 # ===========================================================================
+# mpl-switch set-option <KEY> <VALUE>
+
+def doSetOption():
+  checkInitialized()
+
+  if len(sys.argv) < 4:
+    printUsageAndDie()
+
+  key_name = sys.argv[2]
+  desired_value = sys.argv[3]
+
+  if key_name not in KNOWN_KEYS:
+    sys.stderr.write("ERROR: unknown key: {}\n".format(key_name))
+    sys.stderr.write("known keys: {}\n".format(" ".join(KNOWN_KEYS)))
+    sys.exit(1)
+
+  with open(DOTMPL_INFO, 'r') as file:
+    info = json.load(file)
+
+  if "options" not in info:
+    info["options"] = {}
+  info["options"][key_name] = desired_value
+
+  with open(DOTMPL_INFO, 'w') as file:
+    json.dump(info, file)
+
+  print("set {}: {}".format(key_name, desired_value))
+
+
+# ===========================================================================
 
 if len(sys.argv) < 2:
   printUsageAndDie()
@@ -339,6 +390,8 @@ elif cmd == "update-tags":
   doUpdateTags()
 elif cmd == "path":
   doPath()
+elif cmd == "set-option":
+  doSetOption()
 else:
   sys.stderr.write("unknown command: {}\n".format(cmd))
   printUsageAndDie()
