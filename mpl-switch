@@ -96,16 +96,16 @@ def is_exe(fpath):
   return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
 
 
-def get_gmp_dir():
+def get_option(key):
   with open(DOTMPL_INFO, 'r') as file:
-    gmp_dir = json.load(file).get("options", {}).get("gmp-dir", None)
+    gmp_dir = json.load(file).get("options", {}).get(key, None)
   return gmp_dir
 
 
 # test if it seems like GMP is installed.
 # (returns True if gcc is happy)
 def checkGMP():
-  gmp_dir = get_gmp_dir()
+  gmp_dir = get_option("gmp-dir")
 
   tmp_fd, tmp_path = tempfile.mkstemp(suffix=".c", text=True)
   with os.fdopen(tmp_fd, 'w') as file:
@@ -121,6 +121,25 @@ def checkGMP():
   try:
     subprocess.check_call(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return True
+  except:
+    return False
+
+
+# test if the make command seems like GNU
+def checkGNUMake():
+  make_cmd = get_option('make-cmd')
+
+  tmpDir = tempfile.mkdtemp()
+  with open(os.path.join(tmpDir, 'GNUmakefile'), 'w') as file:
+    file.write("default:\n")
+
+  if not make_cmd:
+    make_cmd = "make"
+  try:
+    talks_like_gnu = 'GNU' in subprocess.check_output([make_cmd, '--version']).decode(sys.stdout.encoding)
+    # should only succeed if GNU, because makefile is named "GNUmakefile"
+    looks_like_gnu = 0 == subprocess.call([make_cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, cwd=tmpDir)
+    return (talks_like_gnu and looks_like_gnu)
   except:
     return False
 
@@ -156,6 +175,13 @@ def do_GMP_recommendations():
     sys.stderr.write("It looks like you're on Ubuntu. You might just need to do this:\n")
     sys.stderr.write("  apt install libgmp-dev")
 
+
+def do_GNUMake_recommendations():
+  g = guess_system()
+  if g == 'mac':
+    sys.stderr.write("It looks like you're on a Mac. We recommend using Homebrew:\n")
+    sys.stderr.write("  brew install make\n")
+    sys.stderr.write("  mpl-switch set-option make-cmd $(brew --prefix make)/bin/gmake\n")
 
 # ===========================================================================
 # mpl-switch init
@@ -283,11 +309,22 @@ def doInstall():
     print("{} is already installed".format(commit))
     return
 
-  if not checkGMP():
+  if checkGMP():
+    print("GMP looks good\n")
+  else:
     sys.stderr.write("ERROR: seems like GMP is not installed?\n")
     sys.stderr.write("You may need to configure mpl-switch:\n")
     sys.stderr.write("  mpl-switch set-option gmp-dir /path/to/gmp/installation\n")
     do_GMP_recommendations()
+    return
+
+  if checkGNUMake():
+    print("GNU Make looks good\n")
+  else:
+    sys.stderr.write("ERROR: no GNU make?\n")
+    sys.stderr.write("You may need to configure mpl-switch:\n")
+    sys.stderr.write("  mpl-switch set-option make-cmd /path/to/gmake\n")
+    do_GNUMake_recommendations()
     return
 
   tempDir = os.path.join(tempfile.mkdtemp(), commit)
