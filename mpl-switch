@@ -6,6 +6,7 @@ import stat
 import tempfile
 import subprocess
 import json
+import shutil
 
 HOME = os.path.expanduser("~")
 
@@ -210,16 +211,32 @@ def doInstall():
 
   commit = sys.argv[2]
   thisVersionDir = os.path.join(DOTMPL_VERSIONS, commit)
-  ensureDir(thisVersionDir)
-
   if os.path.exists(os.path.join(thisVersionDir, "bin", "mpl")):
     print("{} is already installed".format(commit))
     return
 
   tempDir = os.path.join(tempfile.mkdtemp(), commit)
 
-  subprocess.check_call(["git", "clone", "-n", GITHUB_MPL, tempDir])
-  subprocess.check_call(["git", "checkout", commit], cwd=tempDir)
+  # SAM_NOTE: TODO: Might be able to optimize this next step by only doing a
+  # shallow clone (fetching a single commit), for example:
+  #   https://stackoverflow.com/a/43136160/1031831
+  # This would make it a bit quicker by avoiding downloading the whole history
+  # of the repository. (As of today, the full MPL repo is approximately 214 MB
+  # but a single recent commit is only 4 MB.)
+  #
+  # However, `git fetch ...` doesn't seem to support short SHAs, and it would
+  # be nice to keep this functionality for mpl-switch. One possibility would
+  # be to do a shallow clone if the full SHA or tag is given, and to fall back
+  # on a full clone only for short SHAs.
+
+  try:
+    subprocess.check_call(["git", "clone", "-n", GITHUB_MPL, tempDir])
+    subprocess.check_call(["git", "checkout", commit], cwd=tempDir)
+  except Exception as exn:
+    sys.stderr.write("ERROR during checkout:\n")
+    sys.stderr.write(str(exn))
+    sys.stderr.write("\nCanceling installation...\n")
+    return
 
   try:
     maybeTag = subprocess.check_output(
@@ -231,17 +248,32 @@ def doInstall():
   except:
     maybeTag = None
 
-  subprocess.check_call(
-    # ["make"] or ["gmake"] or whatever
-    getMakeCmd(with_options=True),
-    cwd=tempDir
-  )
+  try:
+    subprocess.check_call(
+      # ["make"] or ["gmake"] or whatever
+      getMakeCmd(with_options=True),
+      cwd=tempDir
+    )
+  except Exception as exn:
+    sys.stderr.write("ERROR during build:\n")
+    sys.stderr.write(str(exn))
+    sys.stderr.write("\nCanceling installation...\n")
+    return
   
-  subprocess.check_call(
-    # ["make"] + ["install", ...]
-    getMakeCmd(with_options=False) + ["install", "PREFIX={}".format(thisVersionDir)],
-    cwd=tempDir
-  )
+  ensureDir(thisVersionDir)
+
+  try:
+    subprocess.check_call(
+      # ["make"] + ["install", ...]
+      getMakeCmd(with_options=False) + ["install", "PREFIX={}".format(thisVersionDir)],
+      cwd=tempDir
+    )
+  except Exception as exn:
+    sys.stderr.write("ERROR during install:\n")
+    sys.stderr.write(str(exn))
+    sys.stderr.write("\nCanceling installation...\n")
+    shutil.rmtree(thisVersionDir)
+    return
 
   if maybeTag is not None:
     with open(DOTMPL_INFO, 'r') as file:
@@ -256,8 +288,8 @@ def doInstall():
     tagMsg = " (git tag: {})".format(maybeTag)
   else:
     tagMsg = ""
-  print("installed {}{}".format(commit, tagMsg))
-  print("(to select this version: mpl-switch select {})".format(commit))
+  print("INSTALLED {}{}".format(commit, tagMsg))
+  print("To select this version, run:\n  mpl-switch select {}".format(commit))
 
 # ===========================================================================
 # mpl-switch select
