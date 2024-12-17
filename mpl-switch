@@ -370,6 +370,27 @@ def doSetOption():
 
 
 # ===========================================================================
+# mpl-switch show-options
+
+def doShowOptions():
+  checkInitialized()
+
+  with open(DOTMPL_INFO, 'r') as file:
+    info = json.load(file)
+
+  kvs = info.get("options", {})
+  if len(kvs.items()) == 0:
+    print("(none)")
+    return
+
+  max_key_len = max(len("KEY"), max(len(str(k)) for k in kvs.keys()))
+  max_val_len = max(len("VALUE"), max(len(str(v)) for v in kvs.values()))
+  row_fmt_str = '{:<' + str(max_key_len) + '} {:<' + str(max_val_len) + '}'
+  print(row_fmt_str.format('KEY', 'VALUE'))
+  for k,v in kvs.items():
+    print(row_fmt_str.format(k, v))
+
+# ===========================================================================
 
 if len(sys.argv) < 2:
   printUsageAndDie()
@@ -392,6 +413,8 @@ elif cmd == "path":
   doPath()
 elif cmd == "set-option":
   doSetOption()
+elif cmd == "show-options":
+  doShowOptions()
 else:
   sys.stderr.write("unknown command: {}\n".format(cmd))
   printUsageAndDie()
