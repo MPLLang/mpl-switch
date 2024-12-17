@@ -30,14 +30,21 @@ KNOWN_KEYS = {"make-cmd", "make-options"}
 USAGE = """\
 usage: mpl-switch <COMMAND>
 Commands:
-  current        display the currently selected version
-  install <REF>  install a version (REF can be either a commit or a tag)
-  select <REF>   select an installed version
-  path <REF>     output the executable path for the version <REF>
-  list           list all installed versions
-  show           (synonym for 'list' command)
-  init           initialize the .mpl directory
-  set-option <KEY> <VALUE>
+  current             display the currently selected version
+  install <REF>       install a version (REF can be either a commit or a tag)
+  select <REF>        select an installed version
+  path <REF>          output the executable path for the version <REF>
+  list                list all installed versions
+  show                (synonym for 'list' command)
+  init                initialize the .mpl directory
+  set-option <K> <V>  set a key-value pair
+  show-options        show all key-value pairs that have been set
+
+For the command 'set-option', two keys are currently supported:
+  make-cmd      This can be used to override the default 'make'.
+                For example: mpl-switch set-option make-cmd gmake
+  make-options  Additional arguments to pass to the make command.
+                For example: mpl-switch set-option make-options "WITH_GMP_DIR=/opt/homebrew/opt/gmp"
 """
 
 def printUsageAndDie():
