@@ -144,6 +144,19 @@ def checkGNUMake():
     return False
 
 
+# test if mlton looks good
+def checkMLton():
+  tmp_fd, tmp_path = tempfile.mkstemp(suffix=".sml", text=True)
+  with os.fdopen(tmp_fd, 'w') as file:
+    file.write('val () = print "Hello world"\n')
+  cmd = ['mlton', tmp_path]
+  try:
+    subprocess.check_call(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return True
+  except:
+    return False
+
+
 # Returns None if not sure. Otherwise, possible values are:
 #   mac windows ubuntu ...
 # For linux distributions, we try using distro.id()
@@ -182,6 +195,14 @@ def do_GNUMake_recommendations():
     sys.stderr.write("It looks like you're on a Mac. We recommend using Homebrew:\n")
     sys.stderr.write("  brew install make\n")
     sys.stderr.write("  mpl-switch set-option make-cmd $(brew --prefix make)/bin/gmake\n")
+
+
+def do_MLton_recommendations():
+  g = guess_system()
+  if g == 'mac':
+    sys.stderr.write("It looks like you're on a Mac. We recommend using Homebrew:\n")
+    sys.stderr.write("  brew install mlton\n")
+
 
 # ===========================================================================
 # mpl-switch init
@@ -309,22 +330,37 @@ def doInstall():
     print("{} is already installed".format(commit))
     return
 
+  problem = False
+
   if checkGMP():
-    print("GMP looks good\n")
+    print("GMP looks good")
   else:
     sys.stderr.write("ERROR: seems like GMP is not installed?\n")
     sys.stderr.write("You may need to configure mpl-switch:\n")
     sys.stderr.write("  mpl-switch set-option gmp-dir /path/to/gmp/installation\n")
     do_GMP_recommendations()
-    return
+    problem = True
+  print("")
 
   if checkGNUMake():
-    print("GNU Make looks good\n")
+    print("GNU Make looks good")
   else:
     sys.stderr.write("ERROR: no GNU make?\n")
     sys.stderr.write("You may need to configure mpl-switch:\n")
     sys.stderr.write("  mpl-switch set-option make-cmd /path/to/gmake\n")
     do_GNUMake_recommendations()
+    problem = True
+  print("")
+
+  if checkMLton():
+    print("MLton looks good")
+  else:
+    sys.stderr.write("ERROR: no MLton?\n")
+    do_MLton_recommendations()
+    problem = True
+  print("")
+
+  if problem:
     return
 
   tempDir = os.path.join(tempfile.mkdtemp(), commit)
