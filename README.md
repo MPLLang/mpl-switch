@@ -9,7 +9,13 @@ automatically.
 
 ## Install
 
-Just clone this repo and add the repo directory to your `PATH`.
+Prerequisites: [GMP](https://gmplib.org/), GNU Make, and
+[MLton](http://www.mlton.org/) (needed to build MPL). If the MLton
+[installation page](http://www.mlton.org/Installation) doesn't work for you,
+try downloading a build directly from the
+[MLton releases page](https://github.com/MLton/mlton/releases).
+
+Then clone this repo and add the repo directory to your `PATH`.
 ```
 $ git clone https://github.com/MPLLang/mpl-switch.git
 $ export PATH="$(pwd -P)/mpl-switch:$PATH"
