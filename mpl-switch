@@ -186,7 +186,7 @@ def do_GMP_recommendations():
     sys.stderr.write("  mpl-switch set-option gmp-dir $(brew --prefix gmp)\n")
   elif g == 'ubuntu':
     sys.stderr.write("It looks like you're on Ubuntu. You might just need to do this:\n")
-    sys.stderr.write("  apt install libgmp-dev")
+    sys.stderr.write("  apt install libgmp-dev\n")
 
 
 def do_GNUMake_recommendations():
@@ -202,6 +202,9 @@ def do_MLton_recommendations():
   if g == 'mac':
     sys.stderr.write("It looks like you're on a Mac. We recommend using Homebrew:\n")
     sys.stderr.write("  brew install mlton\n")
+  else:
+    sys.stderr.write("MLton is required. Consider downloading a release directly from:\n")
+    sys.stderr.write("  https://github.com/MLton/mlton/releases\n")
 
 
 # ===========================================================================
@@ -220,7 +223,7 @@ def checkInitialized():
   if isInitialized():
     return
   sys.stderr.write("ERROR: .mpl directory not initialized yet\n")
-  sys.stderr.write("(run this: mpl-switch init)")
+  sys.stderr.write("(run this: mpl-switch init)\n")
   sys.exit(1)
 
 
@@ -333,32 +336,32 @@ def doInstall():
   problem = False
 
   if checkGMP():
-    print("GMP looks good")
+    sys.stderr.write("GMP looks good\n")
   else:
     sys.stderr.write("ERROR: seems like GMP is not installed?\n")
     sys.stderr.write("You may need to configure mpl-switch:\n")
     sys.stderr.write("  mpl-switch set-option gmp-dir /path/to/gmp/installation\n")
     do_GMP_recommendations()
     problem = True
-  print("")
+  sys.stderr.write("\n")
 
   if checkGNUMake():
-    print("GNU Make looks good")
+    sys.stderr.write("GNU Make looks good\n")
   else:
     sys.stderr.write("ERROR: no GNU make?\n")
     sys.stderr.write("You may need to configure mpl-switch:\n")
     sys.stderr.write("  mpl-switch set-option make-cmd /path/to/gmake\n")
     do_GNUMake_recommendations()
     problem = True
-  print("")
+  sys.stderr.write("\n")
 
   if checkMLton():
-    print("MLton looks good")
+    sys.stderr.write("MLton looks good\n")
   else:
     sys.stderr.write("ERROR: no MLton?\n")
     do_MLton_recommendations()
     problem = True
-  print("")
+  sys.stderr.write("\n")
 
   if problem:
     return
